@@ -1,0 +1,6 @@
+{
+  "name": "Kişisel Takip ve Kayıt Sistemi",
+  "description": "Mobil uyumlu, biyometrik/şifreli girişli ve özel takvim/kayıt modülleri içeren kişisel takip uygulaması.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

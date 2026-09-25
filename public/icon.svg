@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="50%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#8b5cf6" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#4f46e5" flood-opacity="0.45" />
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)" />
+  <g filter="url(#glow)">
+    <!-- Calendar Shield / Face ID Symbol -->
+    <rect x="120" y="130" width="272" height="252" rx="36" fill="#ffffff" fill-opacity="0.95" />
+    <path d="M120 200 h272" stroke="#e2e8f0" stroke-width="6" />
+    <!-- Calendar Rings -->
+    <rect x="180" y="105" width="24" height="50" rx="12" fill="#1e1b4b" />
+    <rect x="308" y="105" width="24" height="50" rx="12" fill="#1e1b4b" />
+    <!-- Checkmark & Face ID corners inside -->
+    <path d="M210 290 l35 35 l65 -65" fill="none" stroke="#6366f1" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>
