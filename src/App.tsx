@@ -145,7 +145,7 @@ export default function App() {
         date: todayStr,
         status: 'attended',
         mealType: 'lunch',
-        cost: lunchTracker.unitCost || 45,
+        cost: lunchTracker.unitCost || 95,
         note: 'Öğle yemeği',
         updatedAt: Date.now(),
       };

@@ -28,7 +28,7 @@ export interface Tracker {
   color: 'emerald' | 'blue' | 'purple' | 'amber' | 'rose' | 'indigo' | 'cyan' | 'orange';
   type: TrackerType;
   unitName?: string; // e.g. "Öğün", "Gün", "TL", "Bardak"
-  unitCost?: number; // e.g. 45 (TL/öğün)
+  unitCost?: number; // e.g. 95 (TL/öğün)
   calendarData: Record<string, CalendarEntry>; // YYYY-MM-DD -> CalendarEntry
   counterValue?: number;
   checklistItems?: ChecklistItem[];

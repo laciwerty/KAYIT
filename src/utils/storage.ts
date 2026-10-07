@@ -20,7 +20,7 @@ const DEFAULT_TRACKERS: Tracker[] = [
     color: 'emerald',
     type: 'calendar',
     unitName: 'Öğün',
-    unitCost: 45,
+    unitCost: 95,
     isPinned: true,
     createdAt: new Date().toISOString(),
     calendarData: {
@@ -28,7 +28,7 @@ const DEFAULT_TRACKERS: Tracker[] = [
         date: getSampleDateString(0),
         status: 'attended',
         mealType: 'lunch',
-        cost: 45,
+        cost: 95,
         note: 'Öğle yemeği yendi',
         updatedAt: Date.now(),
       },
@@ -36,7 +36,7 @@ const DEFAULT_TRACKERS: Tracker[] = [
         date: getSampleDateString(1),
         status: 'attended',
         mealType: 'lunch',
-        cost: 45,
+        cost: 95,
         note: 'Tavuk sote ve pilav',
         updatedAt: Date.now() - 86400000,
       },
@@ -44,7 +44,7 @@ const DEFAULT_TRACKERS: Tracker[] = [
         date: getSampleDateString(2),
         status: 'attended_both',
         mealType: 'both',
-        cost: 90,
+        cost: 190,
         note: 'Öğle ve akşam nöbet yemeği',
         updatedAt: Date.now() - 86400000 * 2,
       },
@@ -52,7 +52,7 @@ const DEFAULT_TRACKERS: Tracker[] = [
         date: getSampleDateString(3),
         status: 'attended',
         mealType: 'lunch',
-        cost: 45,
+        cost: 95,
         updatedAt: Date.now() - 86400000 * 3,
       },
       [getSampleDateString(6)]: {
@@ -141,7 +141,19 @@ export function loadTrackers(): Tracker[] {
       saveTrackers(DEFAULT_TRACKERS);
       return DEFAULT_TRACKERS;
     }
-    return JSON.parse(raw);
+    const list: Tracker[] = JSON.parse(raw);
+    let changed = false;
+    const upgraded = list.map((t) => {
+      if ((t.id === 'tracker-yemekhane' || t.icon === 'utensils') && (t.unitCost === 45 || !t.unitCost)) {
+        changed = true;
+        return { ...t, unitCost: 95 };
+      }
+      return t;
+    });
+    if (changed) {
+      saveTrackers(upgraded);
+    }
+    return upgraded;
   } catch (e) {
     console.error('Error loading trackers:', e);
     return DEFAULT_TRACKERS;

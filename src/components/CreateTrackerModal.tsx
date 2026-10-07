@@ -54,7 +54,7 @@ export default function CreateTrackerModal({
   const [trackerType, setTrackerType] = useState<TrackerType>('calendar');
   const [selectedIcon, setSelectedIcon] = useState('utensils');
   const [selectedColor, setSelectedColor] = useState<'emerald' | 'blue' | 'purple' | 'amber' | 'rose' | 'indigo'>('emerald');
-  const [unitCost, setUnitCost] = useState<number>(45);
+  const [unitCost, setUnitCost] = useState<number>(95);
   const [unitName, setUnitName] = useState<string>('Öğün');
 
   if (!isOpen) return null;
@@ -230,7 +230,7 @@ export default function CreateTrackerModal({
                   type="number"
                   value={unitCost}
                   onChange={(e) => setUnitCost(Number(e.target.value))}
-                  placeholder="45"
+                  placeholder="95"
                   className="w-full px-3 py-1.5 rounded-lg bg-white/5 border border-white/15 text-xs text-white"
                 />
               </div>

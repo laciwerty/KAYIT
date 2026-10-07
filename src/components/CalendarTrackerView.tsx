@@ -9,7 +9,6 @@ import {
   Check, 
   X, 
   Clock, 
-  DollarSign, 
   FileText, 
   Trash2, 
   Sparkles, 
@@ -61,7 +60,7 @@ export default function CalendarTrackerView({
   const [isSiriModalOpen, setIsSiriModalOpen] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
-  const [unitCostInput, setUnitCostInput] = useState<number>(tracker.unitCost || 45);
+  const [unitCostInput, setUnitCostInput] = useState<number>(tracker.unitCost || 95);
 
   const todayStr = useMemo(() => {
     const y = today.getFullYear();
@@ -281,7 +280,7 @@ export default function CalendarTrackerView({
         date: dateStr,
         status: finalStatus,
         mealType: existing?.mealType || (finalStatus === 'attended' ? 'lunch' : undefined),
-        cost: finalStatus === 'attended' ? (existing?.cost ?? tracker.unitCost ?? 45) : (finalStatus === 'attended_both' ? (tracker.unitCost || 45) * 2 : 0),
+        cost: finalStatus === 'attended' ? (existing?.cost ?? tracker.unitCost ?? 95) : (finalStatus === 'attended_both' ? (tracker.unitCost || 95) * 2 : 0),
         note: existing?.note || '',
         menuText,
         dishes,
@@ -501,14 +500,14 @@ export default function CalendarTrackerView({
 
           <div className="bg-gradient-to-br from-blue-950/40 to-blue-900/20 border border-blue-500/20 rounded-2xl p-3">
             <div className="flex items-center gap-1.5 text-xs text-blue-400 font-medium mb-1">
-              <DollarSign className="w-3.5 h-3.5" />
+              <span className="w-3.5 h-3.5 rounded-full bg-blue-500/20 border border-blue-500/40 flex items-center justify-center font-bold text-[10px] text-blue-300">₺</span>
               <span>Maliyet</span>
             </div>
             <div className="text-2xl font-bold text-white">
               ₺{monthStats.totalCost}
             </div>
             <div className="text-[11px] text-blue-300/70 mt-0.5">
-              Birim: ₺{tracker.unitCost || 45} / öğün
+              Birim: ₺{tracker.unitCost || 95} / öğün
             </div>
           </div>
         </div>
@@ -805,7 +804,7 @@ export default function CalendarTrackerView({
                     )}
                   </div>
                   <span className="text-sm font-semibold">Öğle Yemeği</span>
-                  <span className="text-[11px] text-white/50">Standart öğün (₺{tracker.unitCost || 45})</span>
+                  <span className="text-[11px] text-white/50">Standart öğün (₺{tracker.unitCost || 95})</span>
                 </button>
 
                 <button
@@ -823,7 +822,7 @@ export default function CalendarTrackerView({
                     )}
                   </div>
                   <span className="text-sm font-semibold">Öğle + Akşam</span>
-                  <span className="text-[11px] text-white/50">2 Öğün (₺{(tracker.unitCost || 45) * 2})</span>
+                  <span className="text-[11px] text-white/50">2 Öğün (₺{(tracker.unitCost || 95) * 2})</span>
                 </button>
 
                 <button
