@@ -229,6 +229,16 @@ export default function Dashboard({
                   <strong className="text-white font-semibold">{lunchMonthCount} gün</strong>
                   {lunchTracker.unitCost ? ` (₺${lunchMonthCount * lunchTracker.unitCost})` : ''}
                 </p>
+
+                {lunchTracker.calendarData[todayStr]?.menuText && (
+                  <div className="mt-2.5 p-2 px-3 rounded-xl bg-black/30 border border-emerald-500/20 flex items-center gap-2 text-xs text-amber-200/90 max-w-md">
+                    <Utensils className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span className="font-medium text-white/80 shrink-0">Bugün:</span>
+                    <span className="truncate text-white font-medium">
+                      {lunchTracker.calendarData[todayStr].menuText}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <button

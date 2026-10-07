@@ -20,9 +20,14 @@ import {
   Sun,
   Coffee,
   List,
-  Grid
+  Grid,
+  Camera,
+  RotateCcw,
+  Mic
 } from 'lucide-react';
 import { Tracker, CalendarEntry, DayStatus } from '../types.ts';
+import MenuUploadModal from './MenuUploadModal.tsx';
+import SiriIntegrationModal from './SiriIntegrationModal.tsx';
 
 interface CalendarTrackerViewProps {
   tracker: Tracker;
@@ -51,6 +56,9 @@ export default function CalendarTrackerView({
   // Selected date modal for detailed editing
   const [activeDateModal, setActiveDateModal] = useState<string | null>(null);
   const [noteInput, setNoteInput] = useState<string>('');
+  const [menuInput, setMenuInput] = useState<string>('');
+  const [isMenuUploadOpen, setIsMenuUploadOpen] = useState<boolean>(false);
+  const [isSiriModalOpen, setIsSiriModalOpen] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [unitCostInput, setUnitCostInput] = useState<number>(tracker.unitCost || 45);
@@ -212,7 +220,16 @@ export default function CalendarTrackerView({
 
     const updatedData = { ...tracker.calendarData };
     if (nextStatus === 'none') {
-      delete updatedData[dateStr];
+      if (existing?.menuText) {
+        updatedData[dateStr] = {
+          ...existing,
+          status: 'none',
+          cost: 0,
+          updatedAt: Date.now(),
+        };
+      } else {
+        delete updatedData[dateStr];
+      }
     } else {
       const defaultCost = tracker.unitCost || 0;
       const cost = nextStatus === 'attended_both' ? defaultCost * 2 : nextStatus === 'holiday' ? 0 : defaultCost;
@@ -222,6 +239,8 @@ export default function CalendarTrackerView({
         mealType: nextMealType,
         cost,
         note: existing?.note || '',
+        menuText: existing?.menuText,
+        dishes: existing?.dishes,
         updatedAt: Date.now(),
       };
     }
@@ -237,6 +256,54 @@ export default function CalendarTrackerView({
     setActiveDateModal(dateStr);
     const existing = tracker.calendarData[dateStr];
     setNoteInput(existing?.note || '');
+    setMenuInput(existing?.menuText || '');
+  };
+
+  const handleApplyMenu = (menuEntries: Record<string, Partial<CalendarEntry>>) => {
+    const updatedData = { ...tracker.calendarData };
+    const syncMap: Record<string, string> = {};
+
+    Object.entries(menuEntries).forEach(([dateStr, entry]) => {
+      const existing = updatedData[dateStr];
+      const menuText = entry.menuText || '';
+      const dishes = entry.dishes || (menuText ? menuText.split(',').map((s) => s.trim()).filter(Boolean) : undefined);
+      
+      // Preserve existing attendance status ONLY IF user had explicitly marked it before.
+      // If the day was unmarked or none, keep it as 'none' (or holiday if it's explicitly a holiday).
+      // NEVER automatically mark as 'attended'!
+      const finalStatus: DayStatus = existing && existing.status !== 'none'
+        ? existing.status
+        : entry.status === 'holiday'
+        ? 'holiday'
+        : 'none';
+
+      updatedData[dateStr] = {
+        date: dateStr,
+        status: finalStatus,
+        mealType: existing?.mealType || (finalStatus === 'attended' ? 'lunch' : undefined),
+        cost: finalStatus === 'attended' ? (existing?.cost ?? tracker.unitCost ?? 45) : (finalStatus === 'attended_both' ? (tracker.unitCost || 45) * 2 : 0),
+        note: existing?.note || '',
+        menuText,
+        dishes,
+        updatedAt: Date.now(),
+      };
+
+      if (menuText) {
+        syncMap[dateStr] = menuText;
+      }
+    });
+
+    onUpdateTracker({
+      ...tracker,
+      calendarData: updatedData,
+    });
+
+    // Sync menu cache for Siri endpoint
+    fetch('/api/sync-menu-cache', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ menuMap: syncMap }),
+    }).catch(console.warn);
   };
 
   const handleSetDayStatus = (status: DayStatus, mealType: 'lunch' | 'dinner' | 'both' = 'lunch') => {
@@ -244,12 +311,24 @@ export default function CalendarTrackerView({
     const updatedData = { ...tracker.calendarData };
     
     if (status === 'none') {
-      delete updatedData[activeDateModal];
+      if (updatedData[activeDateModal]?.menuText) {
+        updatedData[activeDateModal] = {
+          ...updatedData[activeDateModal],
+          status: 'none',
+          cost: 0,
+          updatedAt: Date.now(),
+        };
+      } else {
+        delete updatedData[activeDateModal];
+      }
     } else {
       const defaultCost = tracker.unitCost || 0;
       let cost = defaultCost;
       if (status === 'attended_both') cost = defaultCost * 2;
       if (status === 'holiday') cost = 0;
+
+      const trimmedMenu = menuInput.trim();
+      const dishesList = trimmedMenu ? trimmedMenu.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
 
       updatedData[activeDateModal] = {
         date: activeDateModal,
@@ -257,8 +336,18 @@ export default function CalendarTrackerView({
         mealType,
         cost,
         note: noteInput.trim(),
+        menuText: trimmedMenu || undefined,
+        dishes: dishesList,
         updatedAt: Date.now(),
       };
+
+      if (trimmedMenu) {
+        fetch('/api/sync-menu-cache', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ menuMap: { [activeDateModal]: trimmedMenu } }),
+        }).catch(console.warn);
+      }
 
       if (activeDateModal === todayStr) {
         confetti({ particleCount: 40, spread: 70, origin: { y: 0.7 } });
@@ -276,6 +365,30 @@ export default function CalendarTrackerView({
     onUpdateTracker({
       ...tracker,
       unitCost: unitCostInput,
+    });
+    setShowSettingsModal(false);
+  };
+
+  const handleResetMonthAttendance = () => {
+    const currentMonthPrefix = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+    const updatedData = { ...tracker.calendarData };
+
+    Object.keys(updatedData).forEach((dateStr) => {
+      if (dateStr.startsWith(currentMonthPrefix)) {
+        if (updatedData[dateStr].status !== 'none') {
+          updatedData[dateStr] = {
+            ...updatedData[dateStr],
+            status: 'none',
+            cost: 0,
+            updatedAt: Date.now(),
+          };
+        }
+      }
+    });
+
+    onUpdateTracker({
+      ...tracker,
+      calendarData: updatedData,
     });
     setShowSettingsModal(false);
   };
@@ -304,6 +417,24 @@ export default function CalendarTrackerView({
           </div>
 
           <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setIsSiriModalOpen(true)}
+              className="px-3 py-2 rounded-xl bg-purple-600/25 hover:bg-purple-600/35 border border-purple-500/30 text-purple-200 text-xs font-semibold flex items-center gap-1.5 active:scale-95 transition-all shadow-sm"
+              title="Siri Sesli Yanıt Servisi & Bağlantı Linki"
+            >
+              <Mic className="w-4 h-4 text-purple-400" />
+              <span className="hidden sm:inline">Siri Servisi</span>
+              <span className="sm:hidden">Siri</span>
+            </button>
+            <button
+              onClick={() => setIsMenuUploadOpen(true)}
+              className="px-3 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-blue-600/30 active:scale-95 transition-all"
+              title="Aylık Menü Fotoğrafı Yükle"
+            >
+              <Camera className="w-4 h-4 text-white" />
+              <span className="hidden sm:inline">Aylık Menü Yükle</span>
+              <span className="sm:hidden">Menü Yükle</span>
+            </button>
             <button
               onClick={() => setViewMode(viewMode === 'calendar' ? 'list' : 'calendar')}
               className="p-2 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-colors"
@@ -510,7 +641,13 @@ export default function CalendarTrackerView({
                           <span>Tatil</span>
                         </div>
                       )}
-                      {entry?.note && (
+                      {entry?.menuText && (
+                        <div className="text-[9px] text-amber-300/90 truncate flex items-center gap-1 font-medium bg-amber-500/10 px-1 py-0.5 rounded border border-amber-500/20" title={entry.menuText}>
+                          <Utensils className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+                          <span className="truncate">{entry.menuText}</span>
+                        </div>
+                      )}
+                      {entry?.note && entry.note !== entry.menuText && (
                         <div className="text-[9px] text-white/50 truncate italic">
                           {entry.note}
                         </div>
@@ -719,17 +856,51 @@ export default function CalendarTrackerView({
                 </button>
               </div>
 
+              {/* Menu input */}
+              <div className="mb-3.5 p-3.5 bg-white/5 border border-white/10 rounded-2xl">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-white flex items-center gap-1.5">
+                    <Utensils className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Günün Menüsü (Yemekler)</span>
+                  </label>
+                  {tracker.calendarData[activeDateModal]?.dishes && tracker.calendarData[activeDateModal]?.dishes!.length > 0 && (
+                    <span className="text-[10px] text-amber-300/80 font-medium">
+                      {tracker.calendarData[activeDateModal]?.dishes!.length} çeşit
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={menuInput}
+                  onChange={(e) => setMenuInput(e.target.value)}
+                  placeholder="Örn: Mercimek Çorbası, Orman Kebabı, Pirinç Pilavı, Ayran"
+                  className="w-full px-3.5 py-2 rounded-xl bg-black/20 border border-white/15 text-xs text-white placeholder-white/30 focus:outline-none focus:border-amber-400/60 transition-colors"
+                />
+                {tracker.calendarData[activeDateModal]?.dishes && tracker.calendarData[activeDateModal]?.dishes!.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {tracker.calendarData[activeDateModal]?.dishes!.map((dish, i) => (
+                      <span
+                        key={i}
+                        className="px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-300 text-[10px] font-medium border border-amber-500/30"
+                      >
+                        {dish}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Note input */}
               <div className="mb-5">
                 <label className="block text-xs font-medium text-white/70 mb-1.5">
-                  Özel Not (Menü, yemek yorumu vb.)
+                  Kişisel Not (İsteğe bağlı)
                 </label>
                 <input
                   type="text"
                   value={noteInput}
                   onChange={(e) => setNoteInput(e.target.value)}
-                  placeholder="Örn: Orman kebabı, pilav ve tatlı"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/15 text-sm text-white placeholder-white/30 focus:outline-none focus:border-blue-500 transition-colors"
+                  placeholder="Örn: Yemek çok lezzetliydi, tatlı ekstra alındı"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white/5 border border-white/15 text-xs text-white placeholder-white/30 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
 
@@ -796,6 +967,18 @@ export default function CalendarTrackerView({
                 </button>
               </div>
 
+              {/* Reset attendance marks button */}
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={handleResetMonthAttendance}
+                  className="w-full py-2.5 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-300 text-xs font-medium transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Bu Ayın "Yedim" İşaretlerini Sıfırla (Menüleri Koru)</span>
+                </button>
+              </div>
+
               <div className="mt-6 pt-4 border-t border-white/10">
                 <button
                   onClick={() => {
@@ -814,6 +997,21 @@ export default function CalendarTrackerView({
           </div>
         )}
       </AnimatePresence>
+
+      {/* Menu Photo Upload & AI Parse Modal */}
+      <MenuUploadModal
+        isOpen={isMenuUploadOpen}
+        onClose={() => setIsMenuUploadOpen(false)}
+        targetYear={selectedYear}
+        targetMonth={selectedMonth}
+        onApplyMenu={handleApplyMenu}
+      />
+
+      {/* Siri Integration & Test Modal */}
+      <SiriIntegrationModal
+        isOpen={isSiriModalOpen}
+        onClose={() => setIsSiriModalOpen(false)}
+      />
     </div>
   );
 }

@@ -8,6 +8,8 @@ export interface CalendarEntry {
   mealType?: 'lunch' | 'dinner' | 'both';
   cost?: number;
   note?: string;
+  menuText?: string; // e.g. "Mercimek Çorbası, Orman Kebabı, Pilav, Ayran"
+  dishes?: string[];
   updatedAt: number;
 }
 
