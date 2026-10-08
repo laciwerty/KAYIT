@@ -214,36 +214,57 @@ Lütfen yanıtını SADECE ve SADECE aşağıdaki JSON formatında ver, markdown
       };
     });
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const CANDIDATE_MODELS = [
+      'gemini-3.5-flash-lite',
+      'gemini-3.1-flash-lite',
+      'gemini-3.5-flash',
+    ];
 
-    const geminiRes = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'aistudio-build',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              ...inlineParts,
-              { text: prompt },
-            ],
+    let geminiData: any = null;
+    let lastError: any = null;
+
+    for (const model of CANDIDATE_MODELS) {
+      try {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const geminiRes = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'aistudio-build',
           },
-        ],
-      }),
-    });
+          body: JSON.stringify({
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  ...inlineParts,
+                  { text: prompt },
+                ],
+              },
+            ],
+          }),
+        });
 
-    const geminiData = (await geminiRes.json()) as any;
+        const data = (await geminiRes.json()) as any;
+        if (geminiRes.ok && data.candidates?.[0]) {
+          geminiData = data;
+          break;
+        } else {
+          lastError = data.error || { message: `Model ${model} failed` };
+          console.warn(`Model ${model} returned error, trying next fallback:`, lastError?.message);
+        }
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`Model ${model} network error:`, err.message);
+      }
+    }
 
-    if (!geminiRes.ok) {
-      console.error('Gemini API error:', geminiData);
-      const errMsg = geminiData.error?.message || 'Gemini servisi ile iletişim kurulamadı.';
+    if (!geminiData) {
+      const errMsg = lastError?.message || 'Gemini servislerine ulaşılamadı.';
       return res.status(500).json({
         error: errMsg,
         isApiKeyInvalid: errMsg.includes('API key') || errMsg.includes('INVALID_ARGUMENT') || errMsg.includes('UNAUTHENTICATED'),
-        rawError: JSON.stringify(geminiData),
+        rawError: JSON.stringify(lastError),
       });
     }
 
