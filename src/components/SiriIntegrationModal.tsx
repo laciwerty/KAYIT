@@ -12,9 +12,8 @@ import {
   RefreshCw,
   Square,
   ArrowRight,
-  Sliders,
-  Layers,
-  HelpCircle
+  Calendar,
+  Clock
 } from 'lucide-react';
 
 interface SiriIntegrationModalProps {
@@ -36,13 +35,18 @@ export default function SiriIntegrationModal({
   onClose,
 }: SiriIntegrationModalProps) {
   const [activeTab, setActiveTab] = useState<'status' | 'guide'>('status');
+  const [selectedCommand, setSelectedCommand] = useState<'today' | 'tomorrow'>('today');
   const [copied, setCopied] = useState<boolean>(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
   const [siriData, setSiriData] = useState<SiriStatusData | null>(null);
+  const [tomorrowSpeech, setTomorrowSpeech] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // Full endpoint URL based on current browser origin
-  const siriUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/bugun-ne-var` : '/api/bugun-ne-var';
+  // Full endpoint URLs based on current browser origin
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const currentEndpoint = selectedCommand === 'today' 
+    ? `${origin}/api/bugun-ne-var` 
+    : `${origin}/api/yarin-ne-var`;
 
   // Fetch live siri status
   const fetchStatus = async () => {
@@ -52,6 +56,13 @@ export default function SiriIntegrationModal({
       if (res.ok) {
         const data = await res.json();
         setSiriData(data);
+      }
+
+      // Also fetch tomorrow preview
+      const tomRes = await fetch('/api/yarin-ne-var');
+      if (tomRes.ok) {
+        const tomText = await tomRes.text();
+        setTomorrowSpeech(tomText);
       }
     } catch (e) {
       console.warn('Failed to load siri status:', e);
@@ -70,7 +81,7 @@ export default function SiriIntegrationModal({
 
   // Copy link to clipboard
   const handleCopy = () => {
-    navigator.clipboard.writeText(siriUrl);
+    navigator.clipboard.writeText(currentEndpoint);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
@@ -83,7 +94,10 @@ export default function SiriIntegrationModal({
       return;
     }
 
-    const textToSpeak = siriData?.speechText || 'Bugün yemekhane menüsü kontrol ediliyor.';
+    const textToSpeak = selectedCommand === 'today'
+      ? (siriData?.speechText || 'Bugün yemekhane menüsü kontrol ediliyor.')
+      : (tomorrowSpeech || 'Yarın için yemekhane menüsü kontrol ediliyor.');
+
     window.speechSynthesis?.cancel();
 
     const utterance = new SpeechSynthesisUtterance(textToSpeak);
@@ -103,6 +117,10 @@ export default function SiriIntegrationModal({
     window.speechSynthesis?.speak(utterance);
   };
 
+  const currentSpeech = selectedCommand === 'today'
+    ? (siriData?.speechText || 'Bugün için yemekhane menüsü henüz sisteme girilmemiş.')
+    : (tomorrowSpeech || 'Yarın için yemekhane menüsü henüz sisteme girilmemiş.');
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
       <motion.div
@@ -121,10 +139,10 @@ export default function SiriIntegrationModal({
             </div>
             <div>
               <h3 className="text-base font-semibold text-white">
-                Siri Sesli Yanıt Servisi & Kestirme Kurulumu
+                Siri Sesli Servis & Kestirme Merkezi
               </h3>
               <p className="text-xs text-white/50">
-                "Hey Siri, bugün ne yemek var?" için hızlı servis
+                "Bugün ne yemek var?" & "Yarın ne yemek var?"
               </p>
             </div>
           </div>
@@ -139,8 +157,8 @@ export default function SiriIntegrationModal({
           </button>
         </div>
 
-        {/* Tab switcher */}
-        <div className="flex rounded-xl bg-white/5 p-1 border border-white/10 mb-4">
+        {/* Tab switcher: Status vs Guide */}
+        <div className="flex rounded-xl bg-white/5 p-1 border border-white/10 mb-3">
           <button
             type="button"
             onClick={() => setActiveTab('status')}
@@ -164,18 +182,61 @@ export default function SiriIntegrationModal({
             }`}
           >
             <Smartphone className="w-3.5 h-3.5" />
-            <span>3. Aşama: iPhone Kurulum Rehberi</span>
+            <span>iPhone Kestirme Kurulumu</span>
+          </button>
+        </div>
+
+        {/* Command Toggle: Bugün vs Yarın */}
+        <div className="flex items-center gap-2 p-1.5 bg-black/40 border border-white/10 rounded-2xl mb-4">
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedCommand('today');
+              window.speechSynthesis?.cancel();
+              setIsPlayingAudio(false);
+            }}
+            className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+              selectedCommand === 'today'
+                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
+                : 'text-white/60 hover:text-white'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>Bugün Ne Yemek Var?</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedCommand('tomorrow');
+              window.speechSynthesis?.cancel();
+              setIsPlayingAudio(false);
+            }}
+            className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+              selectedCommand === 'tomorrow'
+                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md'
+                : 'text-white/60 hover:text-white'
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            <span>Yarın Ne Yemek Var?</span>
           </button>
         </div>
 
         {activeTab === 'status' ? (
           <div className="space-y-4 flex-1">
             {/* Live Response Card */}
-            <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-950/40 via-slate-900 to-indigo-950/40 border border-purple-500/30 space-y-3">
+            <div className={`p-4 rounded-2xl border space-y-3 transition-colors ${
+              selectedCommand === 'today'
+                ? 'bg-gradient-to-br from-purple-950/40 via-slate-900 to-indigo-950/40 border-purple-500/30'
+                : 'bg-gradient-to-br from-blue-950/40 via-slate-900 to-cyan-950/40 border-blue-500/30'
+            }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-300">
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Siri'nin Vereceği Canlı Yanıt:</span>
+                  <span>
+                    {selectedCommand === 'today' ? "Siri'nin Bugün Vereceği Yanıt:" : "Siri'nin Yarın İçin Vereceği Yanıt:"}
+                  </span>
                 </div>
                 <button
                   onClick={fetchStatus}
@@ -190,10 +251,8 @@ export default function SiriIntegrationModal({
               <div className="p-3.5 bg-black/40 border border-white/10 rounded-xl text-sm font-medium text-white leading-relaxed">
                 {isLoading ? (
                   <div className="text-white/40 text-xs italic">Veri servisi kontrol ediliyor...</div>
-                ) : siriData?.speechText ? (
-                  `"${siriData.speechText}"`
                 ) : (
-                  '"Bugün için yemekhane menüsü henüz sisteme yüklenmemiş."'
+                  `"${currentSpeech}"`
                 )}
               </div>
 
@@ -202,7 +261,11 @@ export default function SiriIntegrationModal({
                 <button
                   type="button"
                   onClick={handlePlayVoice}
-                  className="px-3.5 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600/40 text-purple-200 border border-purple-500/30 text-xs font-semibold flex items-center gap-2 transition-all active:scale-95"
+                  className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all active:scale-95 border ${
+                    selectedCommand === 'today'
+                      ? 'bg-purple-600/30 hover:bg-purple-600/40 text-purple-200 border-purple-500/30'
+                      : 'bg-blue-600/30 hover:bg-blue-600/40 text-blue-200 border-blue-500/30'
+                  }`}
                 >
                   {isPlayingAudio ? (
                     <>
@@ -218,7 +281,7 @@ export default function SiriIntegrationModal({
                 </button>
 
                 <span className="text-[11px] text-white/50">
-                  {siriData?.totalCachedDays || 0} günlük menü hazır
+                  {selectedCommand === 'today' ? 'Bugünün Menüsü' : 'Yarının Menüsü'}
                 </span>
               </div>
             </div>
@@ -226,12 +289,12 @@ export default function SiriIntegrationModal({
             {/* Endpoint URL Box */}
             <div className="space-y-2">
               <label className="text-xs font-medium text-white/70 block">
-                Siri İçin Özel Servis Linkiniz (Endpoint):
+                {selectedCommand === 'today' ? 'Bugün İçin Kestirme Linki:' : 'Yarın İçin Kestirme Linki:'}
               </label>
 
               <div className="flex items-center gap-2">
                 <div className="flex-1 p-3 bg-black/30 border border-white/15 rounded-xl font-mono text-xs text-blue-300 truncate select-all">
-                  {siriUrl}
+                  {currentEndpoint}
                 </div>
 
                 <button
@@ -249,7 +312,7 @@ export default function SiriIntegrationModal({
                 </button>
 
                 <a
-                  href="/api/bugun-ne-var"
+                  href={selectedCommand === 'today' ? '/api/bugun-ne-var' : '/api/yarin-ne-var'}
                   target="_blank"
                   rel="noreferrer"
                   className="p-3 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 transition-colors shrink-0"
@@ -259,7 +322,7 @@ export default function SiriIntegrationModal({
                 </a>
               </div>
               <p className="text-[11px] text-white/40">
-                💡 iPhone Kestirmeler uygulamasında bu adresi kullanacaksınız.
+                💡 iPhone Kestirmeler uygulamasında URL eylemine bu bağlantıyı yapıştırın.
               </p>
             </div>
 
@@ -270,7 +333,11 @@ export default function SiriIntegrationModal({
             >
               <div className="flex items-center gap-2">
                 <Smartphone className="w-4 h-4 text-purple-400 shrink-0" />
-                <span>iPhone'da Kestirme Kurulumu Nasıl Yapılır? (1 Dakika)</span>
+                <span>
+                  {selectedCommand === 'today' 
+                    ? '"Bugün ne yemek var" Kestirmesini Kurma' 
+                    : '"Yarın ne yemek var" Kestirmesini Kurma'}
+                </span>
               </div>
               <ArrowRight className="w-4 h-4 text-purple-400" />
             </div>
@@ -279,17 +346,23 @@ export default function SiriIntegrationModal({
           /* TAB 2: STEP-BY-STEP IPHONE SHORTCUTS GUIDE */
           <div className="space-y-3.5 flex-1 text-xs">
             <div className="p-3 bg-white/5 border border-white/10 rounded-2xl text-white/70 leading-relaxed">
-              iPhone'unuzdaki yerleşik <strong>Kestirmeler (Shortcuts)</strong> uygulamasında sadece aşağıdaki <strong>3 adımı</strong> yapmanız yeterlidir:
+              {selectedCommand === 'today' ? (
+                <>iPhone'da <strong>"Hey Siri, bugün ne yemek var?"</strong> komutunu eklemek için 3 adım:</>
+              ) : (
+                <>iPhone'da <strong>"Hey Siri, yarın ne yemek var?"</strong> komutunu eklemek için 3 adım:</>
+              )}
             </div>
 
             {/* Step 1 */}
             <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 space-y-1.5">
               <div className="flex items-center gap-2 font-semibold text-white">
                 <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center text-[11px]">1</span>
-                <span>Kestirmeler Uygulamasını Açın</span>
+                <span>Kestirmeler Uygulamasında Yeni Kestirme Açın</span>
               </div>
               <p className="text-white/60 pl-7 leading-relaxed">
-                iPhone'unuzda <strong>Kestirmeler (Shortcuts)</strong> uygulamasını açın ve sağ üstteki <strong>"+" (Yeni Kestirme)</strong> butonuna dokunun. Kestirmenin adını en üstten <code>Bugün ne yemek var</code> yapın.
+                iPhone'unuzda <strong>Kestirmeler</strong> uygulamasını açın ve sağ üstteki <strong>"+"</strong> butonuna dokunun. Kestirmenin adını en üstten:
+                <br />
+                👉 <code className="text-amber-300 font-bold">{selectedCommand === 'today' ? 'Bugün ne yemek var' : 'Yarın ne yemek var'}</code> yapın.
               </p>
             </div>
 
@@ -297,14 +370,14 @@ export default function SiriIntegrationModal({
             <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2">
               <div className="flex items-center gap-2 font-semibold text-white">
                 <span className="w-5 h-5 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center text-[11px]">2</span>
-                <span>2 Eylem Ekleyin</span>
+                <span>3 Eylem Ekleyin</span>
               </div>
               <div className="pl-7 space-y-2 text-white/70">
                 <div className="p-2.5 rounded-xl bg-black/30 border border-white/10 space-y-1">
                   <div className="text-blue-300 font-medium font-mono text-[11px]">a) "URL" Eylemi:</div>
                   <div>Arama çubuğuna <strong>URL</strong> yazıp ekleyin ve aşağıdaki linki yapıştırın:</div>
                   <div className="flex items-center gap-1.5 pt-1">
-                    <span className="font-mono text-[10px] text-blue-300 bg-black/40 px-2 py-1 rounded truncate flex-1">{siriUrl}</span>
+                    <span className="font-mono text-[10px] text-blue-300 bg-black/40 px-2 py-1 rounded truncate flex-1">{currentEndpoint}</span>
                     <button
                       onClick={handleCopy}
                       className="px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-semibold flex items-center gap-1 shrink-0"
@@ -317,12 +390,12 @@ export default function SiriIntegrationModal({
 
                 <div className="p-2.5 rounded-xl bg-black/30 border border-white/10 space-y-1">
                   <div className="text-purple-300 font-medium font-mono text-[11px]">b) "URL'nin İçeriğini Al" Eylemi:</div>
-                  <div>Arama çubuğuna <strong>URL'nin İçeriğini Al</strong> yazıp hemen altına ekleyin (Yöntem: GET).</div>
+                  <div>Arama çubuğuna <strong>URL'nin İçeriğini Al</strong> yazıp hemen altına ekleyin (GET).</div>
                 </div>
 
                 <div className="p-2.5 rounded-xl bg-black/30 border border-white/10 space-y-1">
                   <div className="text-emerald-300 font-medium font-mono text-[11px]">c) "Metni Seslendir" Eylemi:</div>
-                  <div>Arama çubuğuna <strong>Metni Seslendir</strong> (Speak Text) yazıp ekleyin. Otomatik olarak servisten gelen cevabı seslendirecektir.</div>
+                  <div>Arama çubuğuna <strong>Metni Seslendir</strong> (Speak Text) yazıp ekleyin.</div>
                 </div>
               </div>
             </div>
@@ -334,9 +407,11 @@ export default function SiriIntegrationModal({
                 <span>Bitti'ye Basın ve Test Edin!</span>
               </div>
               <p className="text-white/60 pl-7 leading-relaxed">
-                Sağ üstteki <strong>Bitti</strong> butonuna dokunun. Artık iPhone'unuzu elinize alıp:
+                Sağ üstteki <strong>Bitti</strong> butonuna dokunun. Artık:
                 <br />
-                👉 <strong className="text-white">"Hey Siri, bugün ne yemek var?"</strong> demeniz yeterlidir!
+                👉 <strong className="text-white">
+                  {selectedCommand === 'today' ? '"Hey Siri, bugün ne yemek var?"' : '"Hey Siri, yarın ne yemek var?"'}
+                </strong> demeniz yeterlidir!
               </p>
             </div>
           </div>
@@ -347,10 +422,16 @@ export default function SiriIntegrationModal({
           <button
             type="button"
             onClick={handleCopy}
-            className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold rounded-2xl text-sm transition-all shadow-lg shadow-purple-600/30 flex items-center justify-center gap-2"
+            className={`flex-1 py-3 text-white font-semibold rounded-2xl text-sm transition-all shadow-lg flex items-center justify-center gap-2 ${
+              selectedCommand === 'today'
+                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-600/30'
+                : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 shadow-blue-600/30'
+            }`}
           >
             {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            <span>{copied ? 'Siri Linki Kopyalandı!' : 'Siri Linkini Kopyala'}</span>
+            <span>
+              {copied ? 'Link Kopyalandı!' : `${selectedCommand === 'today' ? 'Bugün' : 'Yarın'} Kestirme Linkini Kopyala`}
+            </span>
           </button>
 
           <button
