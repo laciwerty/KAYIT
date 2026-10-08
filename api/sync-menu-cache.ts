@@ -3,14 +3,30 @@ import path from 'path';
 
 // Serverless memory cache
 let globalMemoryCache: Record<string, string> = {};
+const APP_STORAGE_KEY = 'zjs31ezo';
 
-export function getCachedMenu(dateStr: string): string | null {
+export async function getCachedMenu(dateStr: string): Promise<string | null> {
   // 1. Check memory cache
   if (globalMemoryCache[dateStr]) {
     return globalMemoryCache[dateStr];
   }
 
-  // 2. Check /tmp/menu-cache.json (writable on Vercel)
+  // 2. Check Cloud Persistence (shared across all Vercel lambdas)
+  try {
+    const cloudRes = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/GetValue/${APP_STORAGE_KEY}/${dateStr}`);
+    if (cloudRes.ok) {
+      const val = await cloudRes.json();
+      if (val && typeof val === 'string') {
+        const decoded = Buffer.from(val, 'base64').toString('utf-8');
+        if (decoded && decoded.trim()) {
+          globalMemoryCache[dateStr] = decoded;
+          return decoded;
+        }
+      }
+    }
+  } catch (e) {}
+
+  // 3. Check /tmp/menu-cache.json (writable on Vercel)
   try {
     const tmpPath = '/tmp/menu-cache.json';
     if (fs.existsSync(tmpPath)) {
@@ -23,7 +39,7 @@ export function getCachedMenu(dateStr: string): string | null {
     }
   } catch (e) {}
 
-  // 3. Check bundled data/menu-cache.json
+  // 4. Check bundled data/menu-cache.json
   try {
     const bundlePaths = [
       path.join(process.cwd(), 'data', 'menu-cache.json'),
@@ -46,7 +62,7 @@ export function getCachedMenu(dateStr: string): string | null {
   return null;
 }
 
-export function saveMenuToCache(menuMap: Record<string, string>) {
+export async function saveMenuToCache(menuMap: Record<string, string>) {
   if (!menuMap || typeof menuMap !== 'object') return;
   globalMemoryCache = { ...globalMemoryCache, ...menuMap };
 
@@ -55,13 +71,24 @@ export function saveMenuToCache(menuMap: Record<string, string>) {
     fs.writeFileSync('/tmp/menu-cache.json', JSON.stringify(globalMemoryCache, null, 2), 'utf-8');
   } catch (e) {}
 
-  // Write to data directory if writable
+  // Write to local data directory if writable
   try {
     const dataDir = path.join(process.cwd(), 'data');
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });
     }
     fs.writeFileSync(path.join(dataDir, 'menu-cache.json'), JSON.stringify(globalMemoryCache, null, 2), 'utf-8');
+  } catch (e) {}
+
+  // Save to persistent cloud store (accessible from any Lambda)
+  try {
+    const promises = Object.entries(menuMap).map(async ([date, menuText]) => {
+      if (!menuText || !date) return;
+      const b64 = Buffer.from(menuText, 'utf-8').toString('base64url');
+      const saveUrl = `https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/${APP_STORAGE_KEY}/${date}/${b64}`;
+      await fetch(saveUrl, { method: 'POST' }).catch(() => {});
+    });
+    await Promise.allSettled(promises);
   } catch (e) {}
 }
 
@@ -78,7 +105,7 @@ export default async function handler(req: any, res: any) {
     try {
       const { menuMap } = req.body || {};
       if (menuMap && typeof menuMap === 'object') {
-        saveMenuToCache(menuMap);
+        await saveMenuToCache(menuMap);
       }
       return res.status(200).json({ success: true, count: Object.keys(globalMemoryCache).length });
     } catch (e: any) {

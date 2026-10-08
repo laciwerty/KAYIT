@@ -126,6 +126,27 @@ export default function App() {
     setSecuritySettings(loadSecuritySettings());
   };
 
+  // Automatically sync lunch menu to server and cloud cache for Siri whenever trackers change
+  useEffect(() => {
+    const lunchTracker = trackers.find((t) => t.id === 'tracker-yemekhane' || t.icon === 'utensils');
+    if (!lunchTracker?.calendarData) return;
+
+    const syncMap: Record<string, string> = {};
+    Object.entries(lunchTracker.calendarData).forEach(([dateStr, entry]) => {
+      if (entry.menuText) {
+        syncMap[dateStr] = entry.menuText;
+      }
+    });
+
+    if (Object.keys(syncMap).length > 0) {
+      fetch('/api/sync-menu-cache', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ menuMap: syncMap }),
+      }).catch(console.warn);
+    }
+  }, [trackers]);
+
   // Quick toggle today for the lunch tracker
   const handleQuickToggleLunch = useCallback(() => {
     const lunchTracker = trackers.find((t) => t.id === 'tracker-yemekhane' || t.icon === 'utensils');

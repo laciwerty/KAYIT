@@ -71,7 +71,7 @@ export default async function handler(req: any, res: any) {
   }
 
   const customMenu = req.query?.menu as string;
-  const menuText = customMenu || getCachedMenu(dateStr);
+  const menuText = customMenu || (await getCachedMenu(dateStr));
 
   if (menuText && menuText.trim()) {
     return res.status(200).send(formatMenuToSpokenSentence(menuText, dayPrefix));
