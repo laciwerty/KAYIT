@@ -1,6 +1,8 @@
 // Vercel Serverless Function: /api/bugun-ne-var
 // Works out of the box on https://[your-app].vercel.app/api/bugun-ne-var
 
+import { getCachedMenu } from './sync-menu-cache.ts';
+
 function getTurkeyDate(offsetDays: number = 0): { dateStr: string; isWeekend: boolean; dayName: string } {
   const targetDate = new Date();
   if (offsetDays !== 0) {
@@ -68,11 +70,12 @@ export default async function handler(req: any, res: any) {
     return res.status(200).send(`${dayPrefix} hafta sonu (${dayName}), yemekhane kapalı.`);
   }
 
-  // Check query parameter for menu or fallback message
   const customMenu = req.query?.menu as string;
-  if (customMenu) {
-    return res.status(200).send(formatMenuToSpokenSentence(customMenu, dayPrefix));
+  const menuText = customMenu || getCachedMenu(dateStr);
+
+  if (menuText && menuText.trim()) {
+    return res.status(200).send(formatMenuToSpokenSentence(menuText, dayPrefix));
   }
 
-  return res.status(200).send(`Bugün (${dayName}) yemekhane servisi aktif. Güncel menünüz takviminizden otomatik seslendirilir.`);
+  return res.status(200).send(`${dayPrefix} için (${dayName}) yemekhane menüsü henüz sisteme girilmemiş.`);
 }

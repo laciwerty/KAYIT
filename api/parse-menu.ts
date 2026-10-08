@@ -1,6 +1,8 @@
 // Vercel Serverless Function: /api/parse-menu
 // Enables AI menu parsing directly on Vercel deployment
 
+import { saveMenuToCache } from './sync-menu-cache.ts';
+
 export const config = {
   api: {
     bodyParser: {
@@ -155,6 +157,15 @@ Lütfen yanıtını SADECE ve SADECE aşağıdaki JSON formatında ver, markdown
 
     try {
       const parsedData = JSON.parse(cleanedJson);
+      if (parsedData.days && Array.isArray(parsedData.days)) {
+        const syncMap: Record<string, string> = {};
+        parsedData.days.forEach((d: any) => {
+          if (d.date && d.menuText) {
+            syncMap[d.date] = d.menuText;
+          }
+        });
+        saveMenuToCache(syncMap);
+      }
       return res.status(200).json({ success: true, data: parsedData });
     } catch (parseErr) {
       return res.status(500).json({

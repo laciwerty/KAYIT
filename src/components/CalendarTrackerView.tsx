@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { 
@@ -68,6 +68,26 @@ export default function CalendarTrackerView({
     const d = String(today.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }, [today]);
+
+  // Auto-sync calendar menu data to server cache for Siri
+  useEffect(() => {
+    const syncMap: Record<string, string> = {};
+    if (tracker.calendarData) {
+      Object.entries(tracker.calendarData).forEach(([dateStr, entry]) => {
+        if (entry.menuText) {
+          syncMap[dateStr] = entry.menuText;
+        }
+      });
+    }
+
+    if (Object.keys(syncMap).length > 0) {
+      fetch('/api/sync-menu-cache', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ menuMap: syncMap }),
+      }).catch(console.warn);
+    }
+  }, [tracker.calendarData]);
 
   // Navigate months
   const handlePrevMonth = () => {
