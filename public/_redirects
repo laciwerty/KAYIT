@@ -1,1 +1,6 @@
-/*    /index.html   200
+/api/bugun-ne-var    /.netlify/functions/bugun-ne-var    200
+/api/yarin-ne-var    /.netlify/functions/yarin-ne-var    200
+/api/siri-status     /.netlify/functions/siri-status     200
+/api/sync-menu-cache /.netlify/functions/sync-menu-cache 200
+/api/*               /.netlify/functions/:splat          200
+/*                   /index.html                         200

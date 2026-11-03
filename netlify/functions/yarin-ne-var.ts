@@ -34,37 +34,23 @@ function formatMenuToSpokenSentence(menuText: string, dayPrefix: string = 'Yarı
   }
 
   const items = cleanText.split(/[,–\n]+/).map((s) => s.trim()).filter(Boolean);
-
-  if (items.length === 0) {
-    return `${dayPrefix} yemekhanede: ${cleanText} var.`;
-  }
-
-  if (items.length === 1) {
-    return `${dayPrefix} yemekhanede: ${items[0]} var. Afiyet olsun!`;
-  }
+  if (items.length === 0) return `${dayPrefix} yemekhanede: ${cleanText} var.`;
+  if (items.length === 1) return `${dayPrefix} yemekhanede: ${items[0]} var. Afiyet olsun!`;
 
   const allExceptLast = items.slice(0, -1).join(', ');
   const lastItem = items[items.length - 1];
   return `${dayPrefix} yemekhanede: ${allExceptLast} ve ${lastItem} var. Afiyet olsun!`;
 }
 
-export default async (req: Request) => {
-  const url = new URL(req.url);
+async function getTomorrowResponse(customMenu?: string | null, isTarihSet?: boolean): Promise<string> {
   const { dateStr, isWeekend, dayName } = getTurkeyDate(1);
   const dayPrefix = 'Yarın';
 
-  const headers = {
-    'Content-Type': 'text/plain; charset=utf-8',
-    'Cache-Control': 'no-cache, no-store, must-revalidate',
-    'Access-Control-Allow-Origin': '*',
-  };
-
-  if (!url.searchParams.get('tarih') && isWeekend) {
-    return new Response(`${dayPrefix} hafta sonu (${dayName}), yemekhane kapalı.`, { headers });
+  if (!isTarihSet && isWeekend) {
+    return `${dayPrefix} hafta sonu (${dayName}), yemekhane kapalı.`;
   }
 
-  let menuText = url.searchParams.get('menu');
-
+  let menuText = customMenu;
   if (!menuText) {
     try {
       const cloudRes = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/GetValue/${APP_STORAGE_KEY}/${dateStr}`);
@@ -78,8 +64,48 @@ export default async (req: Request) => {
   }
 
   if (menuText && menuText.trim()) {
-    return new Response(formatMenuToSpokenSentence(menuText, dayPrefix), { headers });
+    return formatMenuToSpokenSentence(menuText, dayPrefix);
   }
 
-  return new Response(`${dayPrefix} için (${dayName}) yemekhane menüsü henüz sisteme girilmemiş.`, { headers });
+  return `${dayPrefix} için (${dayName}) yemekhane menüsü henüz sisteme girilmemiş.`;
+}
+
+// Netlify Functions v2 (Standard Web Request)
+export default async (req: Request) => {
+  const url = new URL(req.url);
+  const customMenu = url.searchParams.get('menu');
+  const isTarihSet = Boolean(url.searchParams.get('tarih'));
+
+  const text = await getTomorrowResponse(customMenu, isTarihSet);
+
+  return new Response(text, {
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Access-Control-Allow-Origin': '*',
+    },
+  });
+};
+
+// Netlify Functions v1 (Classic AWS Lambda style fallback)
+export const handler = async (event: any) => {
+  const params = event.queryStringParameters || {};
+  const customMenu = params.menu;
+  const isTarihSet = Boolean(params.tarih);
+
+  const text = await getTomorrowResponse(customMenu, isTarihSet);
+
+  return {
+    statusCode: 200,
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Access-Control-Allow-Origin': '*',
+    },
+    body: text,
+  };
+};
+
+export const config = {
+  path: '/api/yarin-ne-var',
 };

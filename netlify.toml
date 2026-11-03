@@ -4,6 +4,26 @@
   functions = "netlify/functions"
 
 [[redirects]]
+  from = "/api/bugun-ne-var"
+  to = "/.netlify/functions/bugun-ne-var"
+  status = 200
+
+[[redirects]]
+  from = "/api/yarin-ne-var"
+  to = "/.netlify/functions/yarin-ne-var"
+  status = 200
+
+[[redirects]]
+  from = "/api/siri-status"
+  to = "/.netlify/functions/siri-status"
+  status = 200
+
+[[redirects]]
+  from = "/api/sync-menu-cache"
+  to = "/.netlify/functions/sync-menu-cache"
+  status = 200
+
+[[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
