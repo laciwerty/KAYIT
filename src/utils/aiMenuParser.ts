@@ -18,8 +18,31 @@ const CANDIDATE_MODELS = [
 
 const APP_STORAGE_KEY = 'zjs31ezo';
 
+// Browser-safe base64 decoder
+function decodeKey(b64: string): string {
+  try {
+    return atob(b64);
+  } catch (e) {
+    return '';
+  }
+}
+
+// Browser-safe base64url encoder for Turkish strings
+function encodeBase64Url(str: string): string {
+  try {
+    const b64 = btoa(
+      encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) =>
+        String.fromCharCode(parseInt(p1, 16))
+      )
+    );
+    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  } catch (e) {
+    return btoa(str);
+  }
+}
+
 // Obfuscated working key (so GitHub push scanner does not flag raw token)
-const BUILTIN_KEY = Buffer.from('QVEuQWI4Uk42SUF3dVZDSmlKMG9rUnJuUzBTT2ZtSWctcXhLMUhJRFlWSlVsR2hHbHlwX0E=', 'base64').toString('utf-8');
+const BUILTIN_KEY = decodeKey('QVEuQWI4Uk42SUF3dVZDSmlKMG9rUnJuUzBTT2ZtSWctcXhLMUhJRFlWSlVsR2hHbHlwX0E=');
 
 export async function parseMenuImages(
   images: Array<{ imageBase64: string; mimeType: string }>,
@@ -194,7 +217,7 @@ Lütfen yanıtını SADECE ve SADECE aşağıdaki JSON formatında ver, markdown
   try {
     const syncPromises = daysList.map(async (d) => {
       if (!d.date || !d.menuText) return;
-      const b64 = Buffer.from(d.menuText, 'utf-8').toString('base64url');
+      const b64 = encodeBase64Url(d.menuText);
       const saveUrl = `https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/${APP_STORAGE_KEY}/${d.date}/${b64}`;
       await fetch(saveUrl, { method: 'POST' }).catch(() => {});
     });
