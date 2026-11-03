@@ -17,6 +17,7 @@ import {
   Layers
 } from 'lucide-react';
 import { CalendarEntry } from '../types.ts';
+import { parseMenuImages } from '../utils/aiMenuParser.ts';
 
 interface ParsedDayItem {
   date: string; // YYYY-MM-DD
@@ -188,7 +189,7 @@ export default function MenuUploadModal({
     setActiveStep('review');
   };
 
-  // Call Gemini API with all uploaded pages
+  // Call Gemini API with all uploaded pages (server-first with direct robust fallback)
   const handleParseWithGemini = async () => {
     if (pages.length === 0) return;
 
@@ -197,30 +198,16 @@ export default function MenuUploadModal({
     setIsApiKeyError(false);
 
     try {
-      const response = await fetch('/api/parse-menu', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          images: pages.map((p) => ({
-            imageBase64: p.dataUrl,
-            mimeType: p.mimeType,
-          })),
-          targetYear,
-          targetMonth: targetMonth + 1,
-        }),
-      });
+      const daysList = await parseMenuImages(
+        pages.map((p) => ({
+          imageBase64: p.dataUrl,
+          mimeType: p.mimeType,
+        })),
+        targetYear,
+        targetMonth + 1
+      );
 
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        if (result.isApiKeyInvalid || (result.error && result.error.includes('API key'))) {
-          setIsApiKeyError(true);
-        }
-        throw new Error(result.error || 'Menü ayrıştırılamadı.');
-      }
-
-      const daysList: ParsedDayItem[] = result.data?.days || [];
-      if (daysList.length === 0) {
+      if (!daysList || daysList.length === 0) {
         throw new Error('Görsellerde tablo veya menü satırı tespit edilemedi. Lütfen daha net bir fotoğraf deneyin.');
       }
 
